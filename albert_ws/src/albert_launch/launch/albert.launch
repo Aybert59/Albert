@@ -1,0 +1,161 @@
+<launch>
+    <!-- exemple ligne de commande : "albert map_mode:=scan" -->
+
+    <!-- devel : si true, ne démarre pas certains modules -->
+    <arg name="devel"      default="false" />
+    <!-- map_mode : none ; scan : lance slam_toolbox en mode acquisition ; nav : mode navigation -->
+    <arg name="map_mode"      default="nav" />
+    <!-- map_name : nom de la map dans le répertoire .ros -->
+    <arg name="map_name"      default="DefaultMap" />
+    <!-- robot_type : pour le Joy node en particulier -->
+    <arg name="robot_type" value="$(env ROBOT_TYPE)" doc="robot_type [X1,X3,X3plus,R2,X7]"/>
+
+    <!-- initial pose pour AMCL -->
+    <arg name="initial_pose_x" default="0.0"/>
+    <arg name="initial_pose_y" default="0.0"/>
+    <arg name="initial_pose_a" default="0.0"/>
+
+    <param name="map_mode" value="$(arg map_mode)"/>
+
+    <param name="front_left_wheel_radius_multiplier" value="1.0"/>
+    <param name="front_right_wheel_radius_multiplier" value="1.0"/>
+    <param name="back_left_wheel_radius_multiplier" value="1.0"/>
+    <param name="back_right_wheel_radius_multiplier" value="1.0"/>
+
+    <!-- Start the car chassis drive node, with odometry and imu filtering -->
+    <include file="$(find albert_launch)/launch/bringup.launch"/>
+
+    <!-- Activate the lidar node -->
+    <group>
+        <include file="$(find yahboomcar_laser)/launch/lidar.launch"/>
+        <node pkg="tf" type="static_transform_publisher" name="laser_link_to_laser"
+            args="0 0 0 6.28 0 0  /laser_link /laser 30" />
+    </group>
+    
+       
+    <group if="$(eval arg('map_mode') == 'scan')">
+        <!-- use albert specific nodes -->
+        <!-- Handle control node -->
+        <param name="use_sim_time" value="false"/>
+        <node name="joy_node" pkg="joy" type="joy_node" respawn="false"/>
+        
+        <node name="Albert_yahboom_joy" pkg="joystick_mgr" type="yahboom_joy.py" >
+            <param name="linear_speed_limit" type="double" value="0.7" />
+            <param name="angular_speed_limit" type="double" value="1.62" />
+        </node>
+    
+        <!-- Activate lidar obstacle avoidance node -->
+        <node pkg="laser_avoidance" type="laser_Avoidance.py" name="Albert_laser_Avoidance" required="true" output="screen"/>
+    </group>
+
+    <group if="$(eval arg('map_mode') == 'nav')">
+        <!-- use origin nodes -->
+        <!-- Handle control node -->
+        <include file="$(find yahboomcar_ctrl)/launch/yahboom_joy.launch"/>
+
+        <!-- Activate lidar obstacle avoidance node -->
+        <node pkg="yahboomcar_laser" type="laser_Avoidance.py" name="laser_Avoidance" required="true" output="screen">
+            <param name="switch" value="true" />
+        </node>
+    </group>
+
+    <!-- start all cameras & video stuff -->
+    
+    <group unless="$(arg devel)">
+        <include file="$(find orbbec_camera)/launch/astraproplus.launch"/>  
+
+        <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" >
+            <param name="video_device" value="/dev/video0" />
+            <param name="image_width" value="640" />
+            <param name="image_height" value="480" />
+            <param name="pixel_format" value="yuyv" />
+            <param name="color_format" value="yuv422p" />
+            <param name="camera_frame_id" value="usb_cam" />
+            <param name="io_method" value="mmap"/>
+        </node>
+
+        <node if="$(eval arg('map_mode') == 'scan')" pkg="depthimage_to_laserscan" type="depthimage_to_laserscan" name="depthimage_to_laserscan" >
+            <remap from="image" to="/camera/depth/image_raw"/>
+            <remap from="camera_info" to="/camera/depth/camera_info"/>
+            <remap from="scan" to="/camera_scan"/>
+            <param name="output_frame_id" value="camera_depth_frame"/>
+            <param name="scan_height" value="40"/>
+            <param name="range_min" value="0.3"/>
+            <param name="range_max" value="10"/>
+        </node>
+
+        <node name='Albert_video_server' pkg='web_video_server' type='web_video_server'/>
+
+        <node name="Albert_depth_image" pkg="image_processing" type="publish_depth.py"/>
+        <node name="Albert_ir_image" pkg="image_processing" type="publish_ir.py"/>
+    </group>
+
+
+    <!-- Activate IA analysis nodes 
+    <node unless="$(arg devel)" name='Albert_classification' pkg="classification" type="image_classification.py" output="screen">
+        <param name="Model" value="none"/>
+    </node>
+
+    ####ne fonctionne pas tel quel ; voir si déplacement dans un autre container
+    <node unless="$(arg devel)" name='Albert_detection' pkg="classification" type="object_detection.py" output="screen">
+        <param name="Model" value="none"/>
+    </node>
+        -->
+
+    <!-- start rosbridge websocket server -->
+    <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch" > 
+       <arg name="port" value="9090"/>
+    </include>
+    <node name="tf2_web_republisher" pkg="tf2_web_republisher" type="tf2_web_republisher"/>
+
+    <!-- start slam_toolbox in scan mode. Robot has to be controlled by joystick
+    <node if="$(eval arg('map_mode') == 'scan')" pkg="slam_toolbox" type="lifelong_slam_toolbox_node" name="slam_toolbox" output="screen">
+        <rosparam command="load" file="/root/albert_ws/config/mapper_params_lifelong.yaml" />
+    </node>
+    -->
+    <!-- start slam_toolbox in scan mode. Robot has to be controlled by joystick-->
+    <node if="$(eval arg('map_mode') == 'scan')" pkg="slam_toolbox" type="sync_slam_toolbox_node" name="slam_toolbox" output="screen">
+        <rosparam command="load" file="/root/albert_ws/config/mapper_params_online_sync.yaml" />
+    </node>
+
+    <!-- start autonomous navigation tools in nav mode // Attention à la Initial pose  !!!-->
+    <group if="$(eval arg('map_mode') == 'nav')">
+        <!-- with slam_toolbox 
+        <node pkg="slam_toolbox" type="localization_slam_toolbox_node" name="slam_toolbox" output="screen">
+            <rosparam command="load" file="$(find albert_launch)/config/mapper_params_localization.yaml" />
+        </node>
+        -->
+
+        <!-- with amcl-->
+        <node name="map_server" pkg="map_server" type="map_server" args="/root/albert_ws/config/maps/$(arg map_name).yaml"/> 
+        <include file="$(find yahboomcar_nav)/launch/library/amcl.launch">
+            <arg name="initial_pose_x" value="$(arg initial_pose_x)" />
+            <arg name="initial_pose_y" value="$(arg initial_pose_y)" />
+            <arg name="initial_pose_a" value="$(arg initial_pose_a)" />
+        </include>
+
+
+        <!-- Arguments -->
+        <arg name="move_forward_only" default="false"/>
+        <!-- move_base -->
+        <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+            <rosparam file="$(find albert_launch)/config/global_costmap_params.yaml" command="load"/>
+            <rosparam file="$(find albert_launch)/config/local_costmap_params.yaml" command="load"/>
+            <rosparam file="$(find albert_launch)/config/move_base_params.yaml" command="load"/>
+            <rosparam file="$(find albert_launch)/config/costmap_common_params_$(arg robot_type).yaml" command="load" ns="global_costmap"/>
+            <rosparam file="$(find albert_launch)/config/costmap_common_params_$(arg robot_type).yaml" command="load" ns="local_costmap"/>
+            <rosparam file="$(find albert_launch)/config/dwa_local_planner_params_$(arg robot_type).yaml" command="load"/>
+            <param name="base_local_planner" type="string" value="dwa_local_planner/DWAPlannerROS"/>
+            <!--        <rosparam file="$(find yahboomcar_nav)/param/common/teb_local_planner.yaml" command="load"/>-->
+            <!--        <param name="base_local_planner" type="string" value="teb_local_planner/TebLocalPlannerROS"/>-->
+            <param name="DWAPlannerROS/min_vel_x" value="0.0" if="$(arg move_forward_only)"/>
+            <!--        <remap from="cmd_vel" to="cmd_vel"/>-->
+            <!--        <remap from="odom" to="odom"/>-->
+        </node>
+
+        <node name="trip_manager" pkg="trips" type="trip_manager.py" output="screen"/>
+
+    </group>
+
+    <node name="master_control_program" pkg="mcp" type="mcp.py" output="screen"/>
+</launch>

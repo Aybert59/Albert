@@ -1,0 +1,25 @@
+
+    ultra_image:
+        stdin_open: true
+        tty: true
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: all
+                          capabilities:
+                              - gpu
+        runtime: nvidia
+        network_mode: host
+        environment:
+            - DISPLAY
+            - QT_X11_NO_MITSHM=1
+            - NO_AT_BRIDGE=1
+        volumes:
+            - /tmp/.X11-unix:/tmp/.X11-unix
+            - /home/jetson/temp:/root/temp
+            - /home/jetson/Albert/albert_extras/img_segmentation:/root/module
+        devices:
+            - /dev/input
+        image: ultra_image

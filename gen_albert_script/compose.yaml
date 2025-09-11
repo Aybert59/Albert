@@ -1,0 +1,65 @@
+name: albert
+services:
+    albert_image:
+        stdin_open: true
+        tty: true
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: all
+                          capabilities:
+                              - gpu
+        runtime: nvidia
+        network_mode: host
+        environment:
+            - DISPLAY
+            - QT_X11_NO_MITSHM=1
+            - NO_AT_BRIDGE=1
+            - BASH_ENV=/root/.bashrc
+        volumes:
+            - /tmp/.X11-unix:/tmp/.X11-unix
+            - /home/jetson/temp:/root/temp
+            - /home/jetson/Albert/albert_ws:/root/albert_ws
+            - /dev/bus/usb/001/008:/dev/bus/usb/001/008
+            - /dev/bus/usb/001/010:/dev/bus/usb/001/010
+        devices:
+            - /dev/myserial
+            - /dev/ydlidar
+            - /dev/astro_pro_plus
+            - /dev/astro_pro_plus_rgb
+            - /dev/input
+            - /dev/video0
+            - /dev/video1
+            - /dev/video2
+            - /dev/camera_usb
+            - /dev/camera_depth
+        image: albert_image
+        command: /bin/bash -i -c /root/albert_ws/start_albert.sh
+
+    ultra_image:
+        stdin_open: true
+        tty: true
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: all
+                          capabilities:
+                              - gpu
+        runtime: nvidia
+        network_mode: host
+        environment:
+            - DISPLAY
+            - QT_X11_NO_MITSHM=1
+            - NO_AT_BRIDGE=1
+        volumes:
+            - /tmp/.X11-unix:/tmp/.X11-unix
+            - /home/jetson/temp:/root/temp
+            - /home/jetson/Albert/albert_extras/img_segmentation:/root/module
+        devices:
+            - /dev/input
+        image: ultra_image
+        command: /root/module/segmentation.py

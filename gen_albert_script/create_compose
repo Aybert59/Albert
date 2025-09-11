@@ -1,0 +1,23 @@
+#!/bin/bash
+
+DIR=/home/jetson/gen_albert_script
+CMD1="/bin/bash -i -c /root/albert_ws/start_albert.sh"
+#CMD1="/bin/bash -i -c /root/albert_ws/start_yahboom.sh"
+#CMD1="/bin/bash"
+
+CMD2='/root/module/segmentation.py'
+#CMD2="/bin/bash"
+
+cd $DIR
+DEV1=`ls -l /dev/astro_pro_plus | awk '{print $NF}'`
+DEV2=`ls -l /dev/astro_pro_plus_rgb | awk '{print $NF}'`
+cat compose_p1 > compose.yaml
+echo "            - /dev/$DEV1:/dev/$DEV1" >> compose.yaml
+echo "            - /dev/$DEV2:/dev/$DEV2" >> compose.yaml
+cat compose_p2 >> compose.yaml
+echo "        command: $CMD1" >> compose.yaml 
+cat compose_ultra >> compose.yaml 
+echo "        command: $CMD2" >> compose.yaml 
+
+docker compose up
+

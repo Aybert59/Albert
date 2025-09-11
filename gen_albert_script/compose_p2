@@ -1,0 +1,12 @@
+        devices:
+            - /dev/myserial
+            - /dev/ydlidar
+            - /dev/astro_pro_plus
+            - /dev/astro_pro_plus_rgb
+            - /dev/input
+            - /dev/video0
+            - /dev/video1
+            - /dev/video2
+            - /dev/camera_usb
+            - /dev/camera_depth
+        image: albert_image

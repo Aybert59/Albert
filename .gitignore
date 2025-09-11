@@ -1,0 +1,6 @@
+albert_ws/build
+albert_ws/config
+albert_ws/devel
+albert_ws/src/img_classification/param/*
+albert_ws/src/obj_detection/param/*
+*.pt

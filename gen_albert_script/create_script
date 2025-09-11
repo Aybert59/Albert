@@ -1,0 +1,14 @@
+#!/bin/bash
+
+DIR=/home/jetson/gen_albert_script
+
+cd $DIR
+DEV1=`ls -l /dev/astro_pro_plus | awk '{print $NF}'`
+DEV2=`ls -l /dev/astro_pro_plus_rgb | awk '{print $NF}'`
+cat part1 > start_albert
+echo "-v /dev/$DEV1:/dev/$DEV1 \\" >> start_albert
+echo "-v /dev/$DEV2:/dev/$DEV2 \\" >> start_albert
+cat part2 >> start_albert
+chmod +x start_albert
+
+./start_albert
