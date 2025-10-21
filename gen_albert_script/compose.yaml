@@ -22,8 +22,8 @@ services:
             - /tmp/.X11-unix:/tmp/.X11-unix
             - /home/jetson/temp:/root/temp
             - /home/jetson/Albert/albert_ws:/root/albert_ws
-            - /dev/bus/usb/001/008:/dev/bus/usb/001/008
-            - /dev/bus/usb/001/010:/dev/bus/usb/001/010
+            - /dev/bus/usb/001/036:/dev/bus/usb/001/036
+            - /dev/bus/usb/001/037:/dev/bus/usb/001/037
         devices:
             - /dev/myserial
             - /dev/ydlidar
@@ -62,4 +62,4 @@ services:
         devices:
             - /dev/input
         image: ultra_image
-        command: /root/module/segmentation.py
+        command: /root/module/ia_management.py

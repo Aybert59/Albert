@@ -1,12 +1,15 @@
 #!/bin/bash
 
-DIR=/home/jetson/gen_albert_script
+DIR=/home/jetson/Albert/gen_albert_script
 CMD1="/bin/bash -i -c /root/albert_ws/start_albert.sh"
 #CMD1="/bin/bash -i -c /root/albert_ws/start_yahboom.sh"
 #CMD1="/bin/bash"
 
-CMD2='/root/module/segmentation.py'
+CMD2='/root/module/ia_management.py'
 #CMD2="/bin/bash"
+
+CMD3='/root/module/mcp.py'
+#CMD3="/bin/bash"
 
 cd $DIR
 DEV1=`ls -l /dev/astro_pro_plus | awk '{print $NF}'`
@@ -16,8 +19,16 @@ echo "            - /dev/$DEV1:/dev/$DEV1" >> compose.yaml
 echo "            - /dev/$DEV2:/dev/$DEV2" >> compose.yaml
 cat compose_p2 >> compose.yaml
 echo "        command: $CMD1" >> compose.yaml 
+
+
 cat compose_ultra >> compose.yaml 
 echo "        command: $CMD2" >> compose.yaml 
 
-docker compose up
+
+#cat compose_mcp >> compose.yaml 
+#echo "        command: $CMD3" >> compose.yaml 
+
+sudo jetson_clocks
+docker compose rm -f -v
+docker compose up --force-recreate
 

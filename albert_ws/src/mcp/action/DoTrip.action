@@ -1,0 +1,8 @@
+# Define the goal
+string tripName
+---
+# Define the result
+uint8 returnCode
+---
+# Define a feedback message 
+string nextGoal

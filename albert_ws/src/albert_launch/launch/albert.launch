@@ -96,10 +96,7 @@
         <param name="Model" value="none"/>
     </node>
 
-    ####ne fonctionne pas tel quel ; voir si déplacement dans un autre container
-    <node unless="$(arg devel)" name='Albert_detection' pkg="classification" type="object_detection.py" output="screen">
-        <param name="Model" value="none"/>
-    </node>
+  
         -->
 
     <!-- start rosbridge websocket server -->
@@ -153,9 +150,9 @@
             <!--        <remap from="odom" to="odom"/>-->
         </node>
 
-        <node name="trip_manager" pkg="trips" type="trip_manager.py" output="screen"/>
+         <!-- <node name="trip_manager" pkg="trips" type="trip_manager.py" output="screen"/> -->
 
     </group>
 
-    <node name="master_control_program" pkg="mcp" type="mcp.py" output="screen"/>
+    <node name="master_control_program" pkg="mcp" type="mcp_node.py" output="screen"/>
 </launch>
