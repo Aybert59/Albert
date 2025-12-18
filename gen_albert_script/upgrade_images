@@ -1,0 +1,17 @@
+#!/bin/bash
+
+DIR=/home/jetson/Albert/gen_albert_script
+
+docker rmi albert_image:old
+docker tag albert_image:latest albert_image:old
+docker rmi albert_image:latest
+
+docker rmi ultra_image:old
+docker tag ultra_image:latest ultra_image:old
+docker rmi ultra_image:latest
+
+docker pull ultralytics/ultralytics:latest-jetson-jetpack6
+docker build --file ultra.Dockerfile -t ultra_image:latest .
+
+docker pull yahboomtechnology/ros-noetic:3.0.4
+docker build --file albert_image.Dockerfile -t albert_image:latest .

@@ -12,6 +12,7 @@ import json
 from geometry_msgs.msg import Quaternion
 from tf.transformations import quaternion_from_euler
 from mcp.srv import TripsService, TripsServiceResponse
+from mcp.srv import TripsControl, TripsControlResponse
 
 import actionlib
 from mcp.msg import DoTripAction, DoTripGoal, DoTripResult, DoTripFeedback
@@ -30,8 +31,11 @@ class MasterControl:
         self.srv_arm = rospy.ServiceProxy("CurrentAngle", RobotArmArray)
 
         self.list_trips = rospy.Service("/ListTrips", TripsService, self.handle_list_trips)
+        self.control_trips = rospy.Service("/ControlTrip", TripsControl, self.handle_control_trips)
+        
         self.doTripActionSrv = actionlib.SimpleActionServer("doTrip", DoTripAction, execute_cb=self.doTripCallback, auto_start = False)
         self.doTripActionSrv.start() 
+
         self.currentTrip = None
         self.currentGoal = None
         self.dynamicReconfigureDWAP = Client('/move_base/DWAPlannerROS')
@@ -47,25 +51,33 @@ class MasterControl:
         self.arm_joints = list(current_angles)
         rospy.loginfo("CurrentAngle: %s", self.arm_joints)  
         # Au repos : CurrentAngle: [90.0, 146.0, 0.0, 46.0, 89.0, 30.0]
-
-        return 
-    
-        self.armjoint.id = 3
-        self.armjoint.angle = 110
-        self.pub_Arm.publish(self.armjoint)
-        sleep(0.03)
-        self.armjoint.id = 4
-        self.armjoint.angle = 50
-        self.pub_Arm.publish(self.armjoint)
-        sleep(0.03)
-        self.armjoint.id = 2
-        self.armjoint.angle = 155
-        self.pub_Arm.publish(self.armjoint)
-        sleep(0.03)
+        # ou CurrentAngle: [90.0, 147.0, 71.0, 47.0, 89.0, 30.0]
+        return
         self.armjoint.id = 1
         self.armjoint.angle = 90
         self.pub_Arm.publish(self.armjoint)
         sleep(0.03)
+        self.armjoint.id = 2
+        self.armjoint.angle = 147
+        self.pub_Arm.publish(self.armjoint)
+        sleep(0.03)
+        self.armjoint.id = 3
+        self.armjoint.angle = 0
+        self.pub_Arm.publish(self.armjoint)
+        sleep(0.03)
+        self.armjoint.id = 4
+        self.armjoint.angle = 46
+        self.pub_Arm.publish(self.armjoint)
+        sleep(0.03)
+        self.sub_Arm.unregister()
+        return 
+    
+    def cancel(self):
+        self.currentGoal = None
+        self.currentTrip = None
+        rospy.loginfo('Cancelling trip')
+        self.doTripActionSrv.set_canceled()
+        return
     
     def configure_move_base(self, pose):
         if pose is None: return
@@ -137,22 +149,23 @@ class MasterControl:
         #    uint8 RECALLED=8
         #    uint8 LOST=9
         
+       
         rospy.loginfo('status: ' + str(msg.status.status))
-
+                
         if msg.status.status == 2: #canceled
             self.currentGoal = None
             self.currentTrip = None
             rospy.loginfo('DoTripAction: canceled')
-            self.doTripActionSrv.set_succeeded(DoTripResult(2))
+            #self.doTripActionSrv.set_succeeded(DoTripResult(2))
         elif msg.status.status == 4: #aborted
             self.currentGoal = None
             self.currentTrip = None
             rospy.loginfo('DoTripAction: aborted')
-            self.doTripActionSrv.set_succeeded(DoTripResult(4))
+            #self.doTripActionSrv.set_succeeded(DoTripResult(4))
             
         elif msg.status.status == 3: #succeeded
             self.currentGoal = None
-            if len(self.currentTrip["poses"]) > 0:
+            if (self.currentTrip and len(self.currentTrip["poses"]) > 0):
                 pose = self.currentTrip["poses"].pop(0)
                 self.navigate_to (pose)
             else:
@@ -162,7 +175,7 @@ class MasterControl:
 
     def doTripCallback(self, goal):
         # helper variables
-        r = rospy.Rate(1)
+        r = rospy.Rate(1)    
         
         # publish info to the console for the user
         rospy.loginfo('DoTripAction: starting trip %s' % (goal.tripName))
@@ -211,31 +224,6 @@ class MasterControl:
         rospy.loginfo("CurrentAngle: %s", self.arm_joints)
 
 
-    def cancel(self):
-        
-        # Au repos : CurrentAngle: [90.0, 146.0, 0.0, 46.0, 89.0, 30.0]
-        # ou CurrentAngle: [90.0, 147.0, 71.0, 47.0, 89.0, 30.0]
-
-        return 
-    
-        self.armjoint.id = 1
-        self.armjoint.angle = 90
-        self.pub_Arm.publish(self.armjoint)
-        sleep(0.03)
-        self.armjoint.id = 2
-        self.armjoint.angle = 147
-        self.pub_Arm.publish(self.armjoint)
-        sleep(0.03)
-        self.armjoint.id = 3
-        self.armjoint.angle = 75
-        self.pub_Arm.publish(self.armjoint)
-        sleep(0.03)
-        self.armjoint.id = 4
-        self.armjoint.angle = 46
-        self.pub_Arm.publish(self.armjoint)
-        sleep(0.03)
-        self.sub_Arm.unregister()
-
     def handle_list_trips(self, req):
         # get parameter /map_mode        
         map_mode = rospy.get_param("/map_mode")
@@ -261,6 +249,30 @@ class MasterControl:
         rospy.loginfo(response)
 
         return TripsServiceResponse(response)
+    
+    def handle_control_trips(self, req):
+        rospy.loginfo("ControlTrips request received: control=%d", req.control)
+        if req.control == 0:  # Stop current trip
+            if self.currentGoal:
+                rospy.loginfo("Stopping current trip.")
+                self.currentGoal.cancel_all_goals()
+            self.currentGoal = None
+            self.currentTrip = None
+            self.doTripActionSrv.set_preempted()
+            return TripsControlResponse(1)  # Status 1: Trip stopped
+        elif req.control == 1:  # Pause current trip
+            # Pausing not implemented yet
+            rospy.logwarn("Pause functionality not implemented.")
+            return TripsControlResponse(2)  # Status 2: Pause not implemented
+        elif req.control == 2:  # Resume current trip
+            # Resuming not implemented yet
+            rospy.logwarn("Resume functionality not implemented.")
+            return TripsControlResponse(3)  # Status 3: Resume not implemented
+        else:
+            rospy.logwarn("Invalid control command: %d", req.control)
+            return TripsControlResponse(0)  # Status 0: Invalid command
+    
+    
 
     
 
