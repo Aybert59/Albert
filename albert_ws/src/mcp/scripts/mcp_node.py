@@ -38,6 +38,7 @@ class MasterControl:
 
         self.currentTrip = None
         self.currentGoal = None
+        self.currentPose = None
         self.dynamicReconfigureDWAP = Client('/move_base/DWAPlannerROS')
         self.move_base_listener = rospy.Subscriber('/move_base/result', MoveBaseActionResult, self.move_base_result_callback, queue_size=1)
 
@@ -154,12 +155,14 @@ class MasterControl:
                 
         if msg.status.status == 2: #canceled
             self.currentGoal = None
-            self.currentTrip = None
+            #self.currentTrip = None
+            #self.currentPose = None
             rospy.loginfo('DoTripAction: canceled')
             #self.doTripActionSrv.set_succeeded(DoTripResult(2))
         elif msg.status.status == 4: #aborted
             self.currentGoal = None
-            self.currentTrip = None
+            #self.currentTrip = None
+            #self.currentPose = None
             rospy.loginfo('DoTripAction: aborted')
             #self.doTripActionSrv.set_succeeded(DoTripResult(4))
             
@@ -167,11 +170,14 @@ class MasterControl:
             self.currentGoal = None
             if (self.currentTrip and len(self.currentTrip["poses"]) > 0):
                 pose = self.currentTrip["poses"].pop(0)
+                self.currentPose = pose
                 self.navigate_to (pose)
             else:
                 rospy.loginfo('DoTripAction: finished')
                 self.doTripActionSrv.set_succeeded(DoTripResult(100))
                 self.currentTrip = None
+                self.currentPose = None
+        return
 
     def doTripCallback(self, goal):
         # helper variables
@@ -198,6 +204,7 @@ class MasterControl:
 
             if len(self.currentTrip["poses"]) > 0:
                 pose = self.currentTrip["poses"].pop(0)
+                self.currentPose = pose
                 self.navigate_to(pose)  
         elif goal.tripName.startswith("spot"):
             parts = goal.tripName.split('/')
@@ -258,16 +265,30 @@ class MasterControl:
                 self.currentGoal.cancel_all_goals()
             self.currentGoal = None
             self.currentTrip = None
+            self.currentPose = None
             self.doTripActionSrv.set_preempted()
-            return TripsControlResponse(1)  # Status 1: Trip stopped
+            return TripsControlResponse(1)  # Status ok
         elif req.control == 1:  # Pause current trip
-            # Pausing not implemented yet
-            rospy.logwarn("Pause functionality not implemented.")
-            return TripsControlResponse(2)  # Status 2: Pause not implemented
+            if self.currentGoal:
+                rospy.loginfo("Pausing current trip.")
+                self.currentGoal.cancel_all_goals()
+            self.currentGoal = None
+            return TripsControlResponse(1)  # Status ok
         elif req.control == 2:  # Resume current trip
-            # Resuming not implemented yet
-            rospy.logwarn("Resume functionality not implemented.")
-            return TripsControlResponse(3)  # Status 3: Resume not implemented
+            rospy.logwarn("Resuming current trip.")
+            if self.currentGoal:
+                rospy.loginfo("A goal is already active, cannot resume.")
+                return TripsControlResponse(1)  # Status ok
+            self.currentGoal = None
+            if (self.currentTrip and self.currentPose):
+                pose = self.currentPose
+                self.navigate_to (pose)
+            else:
+                rospy.loginfo('DoTripAction: finished')
+                self.doTripActionSrv.set_succeeded(DoTripResult(100))
+                self.currentTrip = None
+                self.currentPose = None
+            return TripsControlResponse(1)  # Status ok
         else:
             rospy.logwarn("Invalid control command: %d", req.control)
             return TripsControlResponse(0)  # Status 0: Invalid command
